@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MotoControl — Gestión de flota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#12141A;
+    --surface:#1B1E26;
+    --surface-2:#232733;
+    --surface-3:#2A2F3D;
+    --border:#2E323F;
+    --text:#EDEFF3;
+    --text-muted:#8D93A3;
+    --text-faint:#5C6272;
+    --accent:#F5A623;
+    --accent-ink:#1A1300;
+    --accent-soft:rgba(245,166,35,.13);
+    --income:#3DDC97;
+    --income-soft:rgba(61,220,151,.13);
+    --expense:#FF5C6C;
+    --expense-soft:rgba(255,92,108,.13);
+    --radius-s:8px;
+    --radius-m:12px;
+    --radius-l:18px;
+    --font-head:'Space Grotesk', 'Inter', sans-serif;
+    --font-body:'Inter', sans-serif;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *,*::before,*::after{box-sizing:inherit;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--accent-soft);color:var(--accent);}
+  button, input, select, textarea{font-family:inherit;color:inherit;}
+  h1,h2,h3,h4{font-family:var(--font-head);margin:0;letter-spacing:-.01em;}
+  a{color:var(--accent);}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .app{display:flex;min-height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:236px;flex-shrink:0;
+    background:linear-gradient(180deg,#161923,#12141A);
+    border-right:1px solid var(--border);
+    display:flex;flex-direction:column;
+    padding:22px 16px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:0 6px 22px;}
+  .brand-mark{
+    font-size:22px;width:38px;height:38px;border-radius:10px;
+    background:var(--accent-soft);display:flex;align-items:center;justify-content:center;
+    transform:rotate(-8deg);
+  }
+  .brand-title{font-family:var(--font-head);font-weight:700;font-size:16.5px;line-height:1.1;}
+  .brand-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+  .nav{display:flex;flex-direction:column;gap:2px;flex:1;}
+  .nav-item{
+    all:unset;cursor:pointer;
+    padding:10px 12px;border-radius:var(--radius-s);
+    font-size:14px;font-weight:500;color:var(--text-muted);
+    display:flex;align-items:center;gap:10px;
+    transition:background .15s,color .15s;
+  }
+  .nav-item svg{width:17px;height:17px;flex-shrink:0;opacity:.85;}
+  .nav-item:hover{background:var(--surface-2);color:var(--text);}
+  .nav-item.active{background:var(--accent-soft);color:var(--accent);}
+  .sidebar-footer{padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+  .mini-note{font-size:11px;color:var(--text-faint);padding:0 2px;line-height:1.4;}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{
+    display:flex;align-items:center;gap:12px;
+    padding:18px 28px;position:sticky;top:0;z-index:5;
+    background:rgba(18,20,26,.86);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+    padding-top:calc(18px + env(safe-area-inset-top,0px));
+  }
+  #viewTitle{font-family:var(--font-head);font-size:19px;font-weight:600;flex:1;}
+  .sync-status{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--income);}
+  .sync-status.offline .sync-dot{background:var(--expense);}
+  .icon-btn{
+    all:unset;cursor:pointer;width:34px;height:34px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-muted);
+  }
+  .icon-btn:hover{background:var(--surface-2);color:var(--text);}
+  .mobile-only{display:none;}
+
+  .content{padding:24px 28px 60px;}
+  .view.hidden{display:none;}
+  .banner{
+    margin:0 28px 0;padding:11px 16px;border-radius:var(--radius-s);
+    background:var(--expense-soft);color:var(--expense);font-size:13px;font-weight:500;
+    display:flex;align-items:center;gap:8px;
+  }
+  .banner.hidden{display:none;}
+
+  /* ---------- Shared bits ---------- */
+  .grid{display:grid;gap:16px;}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-m);
+    padding:18px 20px;
+  }
+  .card-label{font-size:12px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;}
+  .card-value{font-family:var(--font-head);font-size:28px;font-weight:600;margin-top:8px;}
+  .card-value.income{color:var(--income);}
+  .card-value.expense{color:var(--expense);}
+  .card-sub{font-size:12px;color:var(--text-faint);margin-top:4px;}
+
+  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:30px 0 14px;flex-wrap:wrap;}
+  .section-head:first-child{margin-top:0;}
+  .section-head h2{font-size:16px;font-weight:600;}
+
+  .btn{
+    all:unset;cursor:pointer;padding:9px 16px;border-radius:var(--radius-s);
+    font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:7px;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    transition:transform .1s, background .15s;
+  }
+  .btn:hover{background:var(--surface-3);}
+  .btn:active{transform:scale(.97);}
+  .btn-accent{background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);}
+  .btn-accent:hover{background:#ffb849;}
+  .btn-ghost{background:transparent;border:1px solid var(--border);}
+  .btn-danger{background:transparent;color:var(--expense);border:1px solid rgba(255,92,108,.35);}
+  .btn-danger:hover{background:var(--expense-soft);}
+  .btn.full{width:100%;justify-content:center;}
+  .btn.small{padding:6px 11px;font-size:12.5px;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-m);overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{
+    text-align:left;padding:11px 16px;font-size:11.5px;color:var(--text-muted);
+    text-transform:uppercase;letter-spacing:.04em;font-weight:600;border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  td{padding:12px 16px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end;}
+  .empty-row td{padding:34px 16px;text-align:center;color:var(--text-faint);}
+  .table-scroll{overflow-x:auto;}
+
+  .pill{padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:600;display:inline-block;}
+  .pill-active{background:var(--income-soft);color:var(--income);}
+  .pill-inactive{background:var(--surface-3);color:var(--text-muted);}
+  .pill-maint{background:var(--accent-soft);color:var(--accent);}
+  .amount.income{color:var(--income);font-weight:600;font-family:var(--font-head);}
+  .amount.expense{color:var(--expense);font-weight:600;font-family:var(--font-head);}
+  .muted{color:var(--text-muted);}
+
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  label{font-size:12px;color:var(--text-muted);font-weight:500;}
+  input,select,textarea{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-s);
+    padding:9px 11px;font-size:13.5px;color:var(--text);outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+  textarea{resize:vertical;min-height:60px;}
+
+  .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-m);padding:20px;}
+  .chart-card h3{font-size:14px;font-weight:600;margin-bottom:14px;}
+  .chart-box{position:relative;height:260px;}
+  .two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(8,9,12,.6);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;
+  }
+  .modal{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-l);
+    width:100%;max-width:440px;max-height:88vh;overflow-y:auto;
+    padding:24px;
+  }
+  .modal h3{font-size:17px;margin-bottom:16px;}
+  .modal .field{margin-bottom:12px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .confirm-modal{max-width:360px;}
+  .confirm-modal p{font-size:13.5px;color:var(--text-muted);line-height:1.5;margin:0 0 18px;}
+
+  .nav-ic{display:inline-block;width:20px;text-align:center;margin-right:2px;}
+
+  /* ---------- Bottom nav (mobile) ---------- */
+  .bottom-nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    display:none;justify-content:space-around;align-items:stretch;
+    background:rgba(20,22,29,.92);backdrop-filter:blur(10px);
+    border-top:1px solid var(--border);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .bn-item{
+    all:unset;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    padding:9px 2px 8px;font-size:10.5px;font-weight:600;color:var(--text-faint);text-align:center;
+  }
+  .bn-item span{font-size:19px;line-height:1;}
+  .bn-item.active{color:var(--accent);}
+
+  #fabAdd{
+    all:unset;position:fixed;right:22px;bottom:22px;z-index:35;
+    width:58px;height:58px;border-radius:50%;
+    background:var(--accent);color:var(--accent-ink);
+    display:flex;align-items:center;justify-content:center;
+    font-size:30px;font-weight:600;cursor:pointer;line-height:1;
+    box-shadow:0 8px 22px rgba(245,166,35,.35);
+    padding-bottom:2px;
+  }
+  #fabAdd:active{transform:scale(.94);}
+
+  /* ---------- Toggle & chips (alta/egreso, categorías) ---------- */
+  .toggle-group{display:flex;gap:8px;}
+  .toggle-btn{
+    all:unset;flex:1;text-align:center;padding:13px 10px;border-radius:var(--radius-s);
+    font-weight:700;font-size:14.5px;border:1.5px solid var(--border);color:var(--text-muted);cursor:pointer;
+  }
+  .toggle-btn.tg-income.active{background:var(--income-soft);border-color:var(--income);color:var(--income);}
+  .toggle-btn.tg-expense.active{background:var(--expense-soft);border-color:var(--expense);color:var(--expense);}
+
+  .chip-group{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    all:unset;padding:9px 14px;border-radius:99px;border:1.5px solid var(--border);
+    font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;
+  }
+  .chip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+
+  .driver-moto-hint{
+    font-size:13px;color:var(--text-muted);background:var(--surface-2);
+    border-radius:var(--radius-s);padding:9px 12px;margin-top:2px;
+  }
+  .link-toggle{
+    all:unset;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;padding:4px 0;
+  }
+  .quick-amount{
+    font-family:var(--font-head);font-size:26px !important;font-weight:600;padding:14px 14px !important;
+    text-align:center;
+  }
+
+  @media (max-width:880px){
+    .sidebar{
+      position:fixed;left:0;top:0;bottom:0;z-index:40;transform:translateX(-100%);
+      transition:transform .2s ease;box-shadow:20px 0 40px rgba(0,0,0,.4);
+    }
+    .sidebar.open{transform:translateX(0);}
+    .mobile-only{display:flex;}
+    .content{padding:18px 16px calc(90px + env(safe-area-inset-bottom,0px));}
+    .topbar{padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top,0px));}
+    .two-col{grid-template-columns:1fr;}
+    #viewTitle{font-size:16.5px;}
+    .sync-status span.txt{display:none;}
+    #fabAdd{bottom:calc(76px + env(safe-area-inset-bottom,0px));right:18px;width:54px;height:54px;font-size:27px;}
+  }
+  @media (max-width:520px){
+    table{font-size:12.5px;}
+    th,td{padding:9px 10px;}
+  }
+
+  /* ---------- Login ---------- */
+  #loginScreen{
+    position:fixed;inset:0;z-index:100;
+    background:radial-gradient(circle at 20% 15%, #1c1f2a 0%, #0e0f14 60%);
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .login-card{
+    width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-l);padding:30px 28px;
+  }
+  .login-card .brand{padding:0 0 22px;justify-content:center;text-align:center;flex-direction:column;gap:8px;}
+  .login-card .brand-mark{margin:0 auto;}
+  .login-error{
+    background:var(--expense-soft);color:var(--expense);font-size:12.5px;padding:9px 12px;
+    border-radius:var(--radius-s);margin-bottom:12px;display:none;
+  }
+  .login-error.show{display:block;}
+  .login-hint{font-size:11.5px;color:var(--text-faint);text-align:center;margin-top:16px;line-height:1.5;}
+  .user-chip{
+    display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-muted);
+    padding:6px 10px;border:1px solid var(--border);border-radius:99px;white-space:nowrap;
+  }
+  .config-warning{
+    position:fixed;inset:0;z-index:200;background:#0e0f14;color:var(--text);
+    display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;
+  }
+  .config-warning .box{max-width:480px;}
+  .config-warning code{background:var(--surface-2);padding:2px 6px;border-radius:5px;font-size:12.5px;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" style="display:none;">
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-mark">🏍</div>
+      <div>
+        <div class="brand-title">MotoControl</div>
+        <div class="brand-sub">Inicia sesión para continuar</div>
+      </div>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <form id="loginForm">
+      <div class="field" style="margin-bottom:12px;">
+        <label>Correo</label>
+        <input type="email" id="loginEmail" required autocomplete="username">
+      </div>
+      <div class="field" style="margin-bottom:4px;">
+        <label>Contraseña</label>
+        <input type="password" id="loginPassword" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-accent full" style="margin-top:16px;" id="loginSubmitBtn">Iniciar sesión</button>
+    </form>
+    <div class="login-hint">Acceso solo para las personas invitadas a esta flota. Si necesitas una cuenta, pídesela a quien administra MotoControl.</div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🏍</div>
+      <div>
+        <div class="brand-title">MotoControl</div>
+        <div class="brand-sub">Gestión de flota</div>
+      </div>
+    </div>
+    <nav class="nav" id="navList">
+      <button class="nav-item active" data-view="panel"><span class="nav-ic">🏠</span> Panel</button>
+      <button class="nav-item" data-view="motos"><span class="nav-ic">🏍️</span> Motos</button>
+      <button class="nav-item" data-view="conductores"><span class="nav-ic">🧑</span> Conductores</button>
+      <button class="nav-item" data-view="movimientos"><span class="nav-ic">💵</span> Movimientos</button>
+      <button class="nav-item" data-view="historial"><span class="nav-ic">📜</span> Historial</button>
+      <button class="nav-item" data-view="estadisticas"><span class="nav-ic">📊</span> Estadísticas</button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-accent full" id="pdfBtn">⬇ PDF mensual</button>
+      <div class="mini-note">Los datos se comparten en tiempo real entre todas las cuentas con acceso.</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn mobile-only" id="menuToggle">☰</button>
+      <div id="viewTitle">Panel</div>
+      <div class="user-chip" id="userChip" style="display:none;"></div>
+      <div class="sync-status offline" id="syncStatus"><span class="sync-dot"></span><span class="txt">sin iniciar sesión</span></div>
+      <button class="btn small" id="logoutBtn" style="display:none;">Salir</button>
+    </header>
+    <div class="banner hidden" id="banner"></div>
+
+    <div class="content">
+
+      <!-- PANEL -->
+      <section class="view" id="view-panel">
+        <div class="grid cards" id="panelCards"></div>
+
+        <div class="section-head"><h2>Ingresos y egresos — últimos 6 meses</h2></div>
+        <div class="chart-card"><div class="chart-box"><canvas id="chartPanelTrend"></canvas></div></div>
+
+        <div class="section-head"><h2>Movimientos recientes</h2>
+          <button class="btn small" data-nav="historial">Ver historial completo</button>
+        </div>
+        <div class="table-wrap table-scroll">
+          <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Moto</th><th>Categoría</th><th>Monto</th></tr></thead>
+          <tbody id="panelRecentBody"></tbody></table>
+        </div>
+      </section>
+
+      <!-- MOTOS -->
+      <section class="view hidden" id="view-motos">
+        <div class="section-head">
+          <h2>Motos registradas</h2>
+          <button class="btn btn-accent" id="addMotoBtn">+ Agregar moto</button>
+        </div>
+        <div class="table-wrap table-scroll">
+          <table>
+            <thead><tr><th>Placa</th><th>Marca / Modelo</th><th>Año</th><th>Conductor</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="motosBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CONDUCTORES -->
+      <section class="view hidden" id="view-conductores">
+        <div class="section-head">
+          <h2>Conductores</h2>
+          <button class="btn btn-accent" id="addConductorBtn">+ Agregar conductor</button>
+        </div>
+        <div class="table-wrap table-scroll">
+          <table>
+            <thead><tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Moto asignada</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="conductoresBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MOVIMIENTOS -->
+      <section class="view hidden" id="view-movimientos">
+        <div class="two-col">
+          <div class="card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;text-align:center;padding:34px 20px;">
+            <div style="font-size:34px;">💵</div>
+            <div style="font-family:var(--font-head);font-size:16px;font-weight:600;">Registrar un ingreso o egreso</div>
+            <div class="muted" style="font-size:12.5px;max-width:280px;">Elige el conductor, escribe el monto y listo — la moto se asigna sola.</div>
+            <button class="btn btn-accent" id="openQuickAddBtn" style="margin-top:6px;padding:12px 26px;font-size:15px;">+ Registrar movimiento</button>
+          </div>
+          <div class="card">
+            <div class="card-label">Resumen del día</div>
+            <div id="movTodaySummary" style="margin-top:12px;"></div>
+          </div>
+        </div>
+
+        <div class="section-head"><h2>Últimos movimientos</h2></div>
+        <div class="table-wrap table-scroll">
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Moto</th><th>Conductor</th><th>Categoría</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="movRecentBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- HISTORIAL -->
+      <section class="view hidden" id="view-historial">
+        <div class="section-head"><h2>Historial completo</h2></div>
+        <div class="filters">
+          <div class="field">
+            <label>Desde</label>
+            <input type="date" id="histDesde">
+          </div>
+          <div class="field">
+            <label>Hasta</label>
+            <input type="date" id="histHasta">
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select id="histTipo"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="egreso">Egresos</option></select>
+          </div>
+          <div class="field">
+            <label>Moto</label>
+            <select id="histMoto"><option value="">Todas</option></select>
+          </div>
+          <div class="field">
+            <label>Conductor</label>
+            <select id="histConductor"><option value="">Todos</option></select>
+          </div>
+          <div class="field">
+            <label>Buscar</label>
+            <input type="text" id="histBuscar" placeholder="Descripción…">
+          </div>
+        </div>
+        <div class="section-head" style="margin-top:0;">
+          <span class="muted" id="histSummary" style="font-size:13px;"></span>
+          <button class="btn small" id="histClear">Limpiar filtros</button>
+        </div>
+        <div class="table-wrap table-scroll">
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Moto</th><th>Conductor</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ESTADISTICAS -->
+      <section class="view hidden" id="view-estadisticas">
+        <div class="section-head"><h2>Balance mensual (12 meses)</h2></div>
+        <div class="chart-card"><div class="chart-box"><canvas id="chartYear"></canvas></div></div>
+
+        <div class="two-col" style="margin-top:16px;">
+          <div class="chart-card"><h3>Egresos por categoría</h3><div class="chart-box"><canvas id="chartExpenseCat"></canvas></div></div>
+          <div class="chart-card"><h3>Rentabilidad por moto</h3><div class="chart-box"><canvas id="chartByMoto"></canvas></div></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+  <nav class="bottom-nav mobile-only" id="bottomNav">
+    <button class="bn-item active" data-view="panel"><span>🏠</span>Panel</button>
+    <button class="bn-item" data-view="historial"><span>📜</span>Historial</button>
+    <button class="bn-item" data-view="estadisticas"><span>📊</span>Stats</button>
+    <button class="bn-item" data-view="motos"><span>🏍️</span>Motos</button>
+    <button class="bn-item" data-view="conductores"><span>🧑</span>Choferes</button>
+  </nav>
+  <button id="fabAdd" aria-label="Registrar ingreso o egreso">＋</button>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== Configuración de Supabase ===================== */
+// 1) Crea un proyecto en https://supabase.com
+// 2) Ejecuta supabase-schema.sql en el SQL Editor de tu proyecto
+// 3) Copia aquí la "Project URL" y la "anon public key" (Settings > API)
+const SUPABASE_URL = "https://tlnqizemnhfasxsevbyi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsbnFpemVtbmhmYXN4c2V2YnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NzQ1OTcsImV4cCI6MjEwNjA1MDU5N30._R6gRb3EG_471-BZkhaxrOLGBbZYjXcx5OM9oyB22jg";
+
+/* ===================== State ===================== */
+let supa = null;
+let currentUser = null;
+let dbAvailable = false;
+let realtimeChannels = [];
+
+let motos = [];
+let conductores = [];
+let movimientos = [];
+
+const CATS_EGRESO = ["Mantenimiento","Combustible","Seguro","Multas","Repuestos","Documentos","Otro"];
+const CATS_INGRESO = ["Alquiler diario","Alquiler semanal","Comisión","Otro"];
+
+const money = (n) => "$" + (Number(n)||0).toLocaleString("es-CO",{minimumFractionDigits:0,maximumFractionDigits:0});
+const uid = () => Math.random().toString(36).slice(2,10);
+const todayStr = () => new Date().toISOString().slice(0,10);
+const monthLabel = (ym) => {
+  const [y,m]=ym.split("-");
+  const d=new Date(Number(y),Number(m)-1,1);
+  return d.toLocaleDateString("es-CO",{month:"short",year:"2-digit"});
+};
+
+function escapeHtml(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function showBanner(msg){
+  const b = document.getElementById("banner");
+  b.textContent = msg;
+  b.classList.remove("hidden");
+}
+function hideBanner(){ document.getElementById("banner").classList.add("hidden"); }
+
+/* ===================== Conversión camelCase <-> snake_case ===================== */
+function toSnake(obj){
+  const out = {};
+  for (const k in obj){
+    // id, createdAt y updatedAt los maneja la base de datos, no se envían
+    if (k==="id" || k==="createdAt" || k==="updatedAt") continue;
+    const snakeKey = k.replace(/[A-Z]/g, m => "_"+m.toLowerCase());
+    out[snakeKey] = (obj[k] === "" ? null : obj[k]);
+  }
+  return out;
+}
+function toCamel(row){
+  const out = {};
+  for (const k in row){
+    out[k.replace(/_([a-z])/g, (_,c)=>c.toUpperCase())] = row[k];
+  }
+  return out;
+}
+
+/* ===================== Config check ===================== */
+function configMissing(){
+  return !SUPABASE_URL || SUPABASE_URL.indexOf("PEGA_AQUI")===0 || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.indexOf("PEGA_AQUI")===0;
+}
+function showConfigWarning(){
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="config-warning"><div class="box">
+      <h3 style="margin-bottom:10px;">Falta configurar Supabase</h3>
+      <p style="color:var(--text-muted);font-size:13.5px;line-height:1.6;">
+        Abre <code>index.html</code> y reemplaza <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code>
+        con los datos de tu proyecto (Settings → API en supabase.com). Revisa el archivo
+        <code>README.md</code> para el paso a paso completo.
+      </p>
+    </div></div>`);
+}
+
+/* ===================== Auth ===================== */
+async function initAuth(){
+  if (configMissing()){ showConfigWarning(); return; }
+  supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const { data:{ session } } = await supa.auth.getSession();
+  if (session) onAuthed(session);
+  else document.getElementById("loginScreen").style.display = "flex";
+
+  supa.auth.onAuthStateChange((event, session)=>{
+    if (event === "SIGNED_IN" && session) onAuthed(session);
+    if (event === "SIGNED_OUT") onSignedOut();
+  });
+
+  document.getElementById("loginForm").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errEl = document.getElementById("loginError");
+    const btn = document.getElementById("loginSubmitBtn");
+    errEl.classList.remove("show");
+    btn.disabled = true; btn.textContent = "Ingresando…";
+    const { error } = await supa.auth.signInWithPassword({ email, password });
+    btn.disabled = false; btn.textContent = "Iniciar sesión";
+    if (error){
+      errEl.textContent = error.message === "Invalid login credentials"
+        ? "Correo o contraseña incorrectos."
+        : error.message;
+      errEl.classList.add("show");
+    }
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", async ()=>{
+    await supa.auth.signOut();
+  });
+}
+
+function onAuthed(session){
+  currentUser = session.user;
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("userChip").style.display = "flex";
+  document.getElementById("userChip").textContent = currentUser.email;
+  document.getElementById("logoutBtn").style.display = "inline-flex";
+  document.getElementById("loginForm").reset();
+  dbAvailable = true;
+  const syncEl = document.getElementById("syncStatus");
+  syncEl.classList.remove("offline");
+  syncEl.querySelector(".txt").textContent = "sincronizado";
+  loadAllAndSubscribe();
+}
+
+function onSignedOut(){
+  currentUser = null;
+  dbAvailable = false;
+  realtimeChannels.forEach(ch=>supa.removeChannel(ch));
+  realtimeChannels = [];
+  motos = []; conductores = []; movimientos = [];
+  document.getElementById("userChip").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+}
+
+/* ===================== Carga de datos + tiempo real ===================== */
+async function loadAllAndSubscribe(){
+  await Promise.all([
+    fetchTable("motos", r=>motos=r),
+    fetchTable("conductores", r=>conductores=r),
+    fetchTable("movimientos", r=>movimientos=r)
+  ]);
+  renderAll();
+
+  ["motos","conductores","movimientos"].forEach(table=>{
+    const ch = supa.channel("public:"+table)
+      .on("postgres_changes", {event:"*", schema:"public", table}, ()=>{
+        fetchTable(table, r=>{
+          if (table==="motos") motos=r;
+          if (table==="conductores") conductores=r;
+          if (table==="movimientos") movimientos=r;
+          renderAll();
+        });
+      }).subscribe();
+    realtimeChannels.push(ch);
+  });
+}
+
+async function fetchTable(table, assign){
+  const { data, error } = await supa.from(table).select("*").order("created_at",{ascending:false});
+  if (error){ console.error(error); showBanner("No se pudieron cargar los datos de "+table+"."); return; }
+  assign((data||[]).map(toCamel));
+}
+
+/* Helpers de escritura usados por toda la app */
+async function createDoc(collection, data){
+  const payload = toSnake(data);
+  const { data:rows, error } = await supa.from(collection).insert([payload]).select();
+  if (error){ console.error(error); showBanner("No se pudo guardar el registro."); throw error; }
+  return rows && rows[0] ? rows[0].id : null;
+}
+async function updateDoc(collection, id, data){
+  const payload = toSnake(data);
+  const { error } = await supa.from(collection).update(payload).eq("id", id);
+  if (error){ console.error(error); showBanner("No se pudo actualizar el registro."); throw error; }
+}
+async function deleteDoc(collection, id){
+  const { error } = await supa.from(collection).delete().eq("id", id);
+  if (error){ console.error(error); showBanner("No se pudo eliminar el registro."); throw error; }
+}
+
+/* ===================== Navigation ===================== */
+const views = ["panel","motos","conductores","movimientos","historial","estadisticas"];
+const titles = {panel:"Panel", motos:"Motos", conductores:"Conductores", movimientos:"Movimientos", historial:"Historial", estadisticas:"Estadísticas"};
+
+function goTo(view){
+  views.forEach(v=>{
+    document.getElementById("view-"+v).classList.toggle("hidden", v!==view);
+  });
+  document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
+  document.querySelectorAll(".bn-item").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
+  document.getElementById("viewTitle").textContent = titles[view];
+  document.getElementById("sidebar").classList.remove("open");
+  if (view==="estadisticas") renderCharts();
+  if (view==="movimientos") renderMovToday();
+}
+document.getElementById("navList").addEventListener("click", e=>{
+  const btn = e.target.closest(".nav-item");
+  if (btn) goTo(btn.dataset.view);
+});
+document.getElementById("bottomNav").addEventListener("click", e=>{
+  const btn = e.target.closest(".bn-item");
+  if (btn) goTo(btn.dataset.view);
+});
+document.querySelectorAll("[data-nav]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.nav)));
+document.getElementById("menuToggle").addEventListener("click", ()=>{
+  document.getElementById("sidebar").classList.toggle("open");
+});
+
+/* ===================== Modal helpers ===================== */
+function openModal(html){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = '<div class="modal-overlay" id="ov"><div class="modal">'+html+'</div></div>';
+  root.querySelector("#ov").addEventListener("click", e=>{ if(e.target.id==="ov") closeModal(); });
+}
+function closeModal(){ document.getElementById("modalRoot").innerHTML = ""; }
+
+function confirmModal(title, msg){
+  return new Promise(resolve=>{
+    const root = document.getElementById("modalRoot");
+    root.innerHTML = `<div class="modal-overlay" id="ovc"><div class="modal confirm-modal">
+      <h3>${escapeHtml(title)}</h3><p>${escapeHtml(msg)}</p>
+      <div class="modal-actions">
+        <button class="btn" id="cCancel">Cancelar</button>
+        <button class="btn btn-danger" id="cOk">Eliminar</button>
+      </div></div></div>`;
+    document.getElementById("cCancel").onclick = ()=>{ closeModal(); resolve(false); };
+    document.getElementById("cOk").onclick = ()=>{ closeModal(); resolve(true); };
+    root.querySelector("#ovc").addEventListener("click", e=>{ if(e.target.id==="ovc"){ closeModal(); resolve(false);} });
+  });
+}
+
+/* ===================== Motos ===================== */
+function motoLabel(m){ return m ? (m.placa + (m.marca?(" · "+m.marca+(m.modelo?" "+m.modelo:"")):"")) : "—"; }
+function getMoto(id){ return motos.find(m=>m.id===id); }
+function getConductor(id){ return conductores.find(c=>c.id===id); }
+
+function renderMotos(){
+  const body = document.getElementById("motosBody");
+  if (!motos.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="6">Aún no hay motos registradas. Agrega la primera con el botón de arriba.</td></tr>';
+    return;
+  }
+  body.innerHTML = motos.map(m=>{
+    const cond = getConductor(m.conductorId);
+    const estado = m.estado || "activa";
+    const pillClass = estado==="activa"?"pill-active":estado==="mantenimiento"?"pill-maint":"pill-inactive";
+    return `<tr>
+      <td><strong>${escapeHtml(m.placa)}</strong></td>
+      <td>${escapeHtml(m.marca||"")} ${escapeHtml(m.modelo||"")}</td>
+      <td>${escapeHtml(m.anio||"—")}</td>
+      <td>${cond?escapeHtml(cond.nombre):'<span class="muted">Sin asignar</span>'}</td>
+      <td><span class="pill ${pillClass}">${escapeHtml(estado)}</span></td>
+      <td><div class="row-actions">
+        <button class="btn small" data-edit-moto="${m.id}">Editar</button>
+        <button class="btn small btn-danger" data-del-moto="${m.id}">Eliminar</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+}
+
+function motoFormHtml(m){
+  const opt = (v,label)=>`<option value="${v}" ${m&&m.estado===v?"selected":""}>${label}</option>`;
+  return `
+    <h3>${m?"Editar moto":"Agregar moto"}</h3>
+    <form id="motoForm">
+      <div class="field"><label>Placa</label><input id="fPlaca" required value="${m?escapeHtml(m.placa):""}"></div>
+      <div class="field"><label>Marca</label><input id="fMarca" value="${m?escapeHtml(m.marca||""):""}"></div>
+      <div class="field"><label>Modelo</label><input id="fModelo" value="${m?escapeHtml(m.modelo||""):""}"></div>
+      <div class="field"><label>Año</label><input id="fAnio" type="number" value="${m?escapeHtml(m.anio||""):""}"></div>
+      <div class="field"><label>Conductor asignado</label>
+        <select id="fConductor"><option value="">— Sin asignar —</option>
+        ${conductores.map(c=>`<option value="${c.id}" ${m&&m.conductorId===c.id?"selected":""}>${escapeHtml(c.nombre)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><label>Estado</label>
+        <select id="fEstado">${opt("activa","Activa")}${opt("mantenimiento","En mantenimiento")}${opt("inactiva","Inactiva")}</select>
+      </div>
+      <div class="field"><label>Notas</label><textarea id="fNotas">${m?escapeHtml(m.notas||""):""}</textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="cancelBtn">Cancelar</button>
+        <button type="submit" class="btn btn-accent">Guardar</button>
+      </div>
+    </form>`;
+}
+
+function openMotoForm(id){
+  const m = id ? getMoto(id) : null;
+  openModal(motoFormHtml(m));
+  document.getElementById("cancelBtn").onclick = closeModal;
+  document.getElementById("motoForm").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const data = {
+      placa: document.getElementById("fPlaca").value.trim().toUpperCase(),
+      marca: document.getElementById("fMarca").value.trim(),
+      modelo: document.getElementById("fModelo").value.trim(),
+      anio: document.getElementById("fAnio").value.trim(),
+      conductorId: document.getElementById("fConductor").value,
+      estado: document.getElementById("fEstado").value,
+      notas: document.getElementById("fNotas").value.trim(),
+      updatedAt: Date.now()
+    };
+    if (!data.placa){ return; }
+    closeModal();
+    if (m) await updateDoc("motos", m.id, {...m, ...data});
+    else await createDoc("motos", {...data, createdAt: Date.now()});
+  });
+}
+
+document.getElementById("addMotoBtn").addEventListener("click", ()=>openMotoForm(null));
+document.getElementById("motosBody").addEventListener("click", async e=>{
+  const editId = e.target.dataset.editMoto;
+  const delId = e.target.dataset.delMoto;
+  if (editId) openMotoForm(editId);
+  if (delId){
+    const ok = await confirmModal("Eliminar moto", "Esta acción no se puede deshacer. El historial de movimientos relacionados se conservará, pero quedará sin moto asignada.");
+    if (ok) await deleteDoc("motos", delId);
+  }
+});
+
+/* ===================== Conductores ===================== */
+function renderConductores(){
+  const body = document.getElementById("conductoresBody");
+  if (!conductores.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="6">Aún no hay conductores registrados. Agrega el primero con el botón de arriba.</td></tr>';
+    return;
+  }
+  body.innerHTML = conductores.map(c=>{
+    const moto = motos.find(m=>m.conductorId===c.id);
+    const estado = c.estado || "activo";
+    const pillClass = estado==="activo"?"pill-active":"pill-inactive";
+    return `<tr>
+      <td><strong>${escapeHtml(c.nombre)}</strong></td>
+      <td>${escapeHtml(c.cedula||"—")}</td>
+      <td>${escapeHtml(c.telefono||"—")}</td>
+      <td>${moto?escapeHtml(motoLabel(moto)):'<span class="muted">Sin asignar</span>'}</td>
+      <td><span class="pill ${pillClass}">${escapeHtml(estado)}</span></td>
+      <td><div class="row-actions">
+        <button class="btn small" data-edit-cond="${c.id}">Editar</button>
+        <button class="btn small btn-danger" data-del-cond="${c.id}">Eliminar</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+}
+
+function condFormHtml(c){
+  return `
+    <h3>${c?"Editar conductor":"Agregar conductor"}</h3>
+    <form id="condForm">
+      <div class="field"><label>Nombre completo</label><input id="cNombre" required value="${c?escapeHtml(c.nombre):""}"></div>
+      <div class="field"><label>Cédula</label><input id="cCedula" value="${c?escapeHtml(c.cedula||""):""}"></div>
+      <div class="field"><label>Teléfono</label><input id="cTelefono" value="${c?escapeHtml(c.telefono||""):""}"></div>
+      <div class="field"><label>Fecha de ingreso</label><input id="cFecha" type="date" value="${c?escapeHtml(c.fechaIngreso||""):""}"></div>
+      <div class="field"><label>Estado</label>
+        <select id="cEstado"><option value="activo" ${c&&c.estado==="activo"?"selected":""}>Activo</option><option value="inactivo" ${c&&c.estado==="inactivo"?"selected":""}>Inactivo</option></select>
+      </div>
+      <div class="field"><label>Notas</label><textarea id="cNotas">${c?escapeHtml(c.notas||""):""}</textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="cancelBtn">Cancelar</button>
+        <button type="submit" class="btn btn-accent">Guardar</button>
+      </div>
+    </form>`;
+}
+
+function openCondForm(id){
+  const c = id ? getConductor(id) : null;
+  openModal(condFormHtml(c));
+  document.getElementById("cancelBtn").onclick = closeModal;
+  document.getElementById("condForm").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const data = {
+      nombre: document.getElementById("cNombre").value.trim(),
+      cedula: document.getElementById("cCedula").value.trim(),
+      telefono: document.getElementById("cTelefono").value.trim(),
+      fechaIngreso: document.getElementById("cFecha").value,
+      estado: document.getElementById("cEstado").value,
+      notas: document.getElementById("cNotas").value.trim(),
+      updatedAt: Date.now()
+    };
+    if (!data.nombre) return;
+    closeModal();
+    if (c) await updateDoc("conductores", c.id, {...c, ...data});
+    else await createDoc("conductores", {...data, createdAt: Date.now()});
+  });
+}
+
+document.getElementById("addConductorBtn").addEventListener("click", ()=>openCondForm(null));
+document.getElementById("conductoresBody").addEventListener("click", async e=>{
+  const editId = e.target.dataset.editCond;
+  const delId = e.target.dataset.delCond;
+  if (editId) openCondForm(editId);
+  if (delId){
+    const ok = await confirmModal("Eliminar conductor", "Esta acción no se puede deshacer. Las motos asignadas a este conductor quedarán sin asignar.");
+    if (ok) await deleteDoc("conductores", delId);
+  }
+});
+
+/* ===================== Movimientos ===================== */
+function fillSelect(sel, arr, labelFn, keepValue){
+  const cur = keepValue!==undefined ? keepValue : sel.value;
+  const first = sel.querySelector("option[value='']");
+  sel.innerHTML = "";
+  if (first) sel.appendChild(first);
+  arr.forEach(item=>{
+    const o = document.createElement("option");
+    o.value = item.id; o.textContent = labelFn(item);
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+function quickAddModalHtml(){
+  return `
+    <h3>Registrar movimiento</h3>
+    <div class="toggle-group" id="qaTipoGroup">
+      <button type="button" class="toggle-btn tg-income active" data-tipo="ingreso">↑ Ingreso</button>
+      <button type="button" class="toggle-btn tg-expense" data-tipo="egreso">↓ Egreso</button>
+    </div>
+    <div class="field" style="margin-top:14px;">
+      <label>Conductor</label>
+      <select id="qaConductor">
+        <option value="">— Sin conductor —</option>
+        ${conductores.map(c=>`<option value="${c.id}">${escapeHtml(c.nombre)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="driver-moto-hint" id="qaMotoHint" style="display:none;"></div>
+    <div class="field" style="margin-top:14px;">
+      <label>Monto</label>
+      <input type="number" id="qaMonto" class="quick-amount" inputmode="decimal" min="0" step="0.01" placeholder="0" required>
+    </div>
+    <div class="field" style="margin-top:14px;">
+      <label>Categoría</label>
+      <div class="chip-group" id="qaCatGroup"></div>
+    </div>
+    <button type="button" class="link-toggle" id="qaToggleMore" style="margin-top:16px;">+ Fecha o nota (opcional)</button>
+    <div id="qaMoreFields" style="display:none;margin-top:10px;">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Fecha</label>
+        <input type="date" id="qaFecha">
+      </div>
+      <div class="field">
+        <label>Nota</label>
+        <textarea id="qaNota" placeholder="Detalle (opcional)"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="cancelBtn">Cancelar</button>
+      <button type="button" class="btn btn-accent" id="qaSaveBtn" style="flex:1;">Guardar</button>
+    </div>`;
+}
+
+function openQuickAddModal(){
+  openModal(quickAddModalHtml());
+  let tipo = "ingreso";
+  const catGroup = document.getElementById("qaCatGroup");
+
+  function renderCats(){
+    const cats = tipo==="ingreso"?CATS_INGRESO:CATS_EGRESO;
+    catGroup.innerHTML = cats.map((c,i)=>`<button type="button" class="chip ${i===0?"active":""}" data-cat="${c}">${c}</button>`).join("");
+  }
+  renderCats();
+
+  document.querySelectorAll("#qaTipoGroup .toggle-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      tipo = btn.dataset.tipo;
+      document.querySelectorAll("#qaTipoGroup .toggle-btn").forEach(b=>b.classList.toggle("active", b===btn));
+      renderCats();
+    });
+  });
+
+  catGroup.addEventListener("click", e=>{
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    catGroup.querySelectorAll(".chip").forEach(c=>c.classList.remove("active"));
+    chip.classList.add("active");
+  });
+
+  const condSel = document.getElementById("qaConductor");
+  const motoHint = document.getElementById("qaMotoHint");
+  condSel.addEventListener("change", ()=>{
+    if (!condSel.value){ motoHint.style.display="none"; return; }
+    const moto = motos.find(m=>m.conductorId===condSel.value);
+    motoHint.style.display = "block";
+    motoHint.textContent = moto ? ("🏍️ Moto asignada: "+motoLabel(moto)) : "Este conductor todavía no tiene una moto asignada.";
+  });
+
+  document.getElementById("qaToggleMore").addEventListener("click", ()=>{
+    const box = document.getElementById("qaMoreFields");
+    const willShow = box.style.display === "none";
+    box.style.display = willShow ? "block" : "none";
+    document.getElementById("qaToggleMore").textContent = willShow ? "− Ocultar fecha y nota" : "+ Fecha o nota (opcional)";
+  });
+
+  document.getElementById("cancelBtn").onclick = closeModal;
+
+  document.getElementById("qaSaveBtn").addEventListener("click", async ()=>{
+    const montoInput = document.getElementById("qaMonto");
+    const monto = parseFloat(montoInput.value)||0;
+    if (!monto){ montoInput.focus(); return; }
+    const conductorId = condSel.value;
+    const moto = motos.find(m=>m.conductorId===conductorId);
+    const catChip = catGroup.querySelector(".chip.active");
+    const fechaInput = document.getElementById("qaFecha").value;
+    const data = {
+      tipo,
+      fecha: fechaInput || todayStr(),
+      monto,
+      motoId: moto ? moto.id : "",
+      conductorId: conductorId,
+      categoria: catChip ? catChip.dataset.cat : (tipo==="ingreso"?CATS_INGRESO[0]:CATS_EGRESO[0]),
+      descripcion: document.getElementById("qaNota").value.trim(),
+      createdAt: Date.now()
+    };
+    const btn = document.getElementById("qaSaveBtn");
+    btn.disabled = true; btn.textContent = "Guardando…";
+    try{
+      await createDoc("movimientos", data);
+      closeModal();
+      renderMovToday();
+    }catch(err){
+      btn.disabled = false; btn.textContent = "Guardar";
+    }
+  });
+
+  setTimeout(()=>{ const el=document.getElementById("qaMonto"); if(el) el.focus(); }, 60);
+}
+
+document.getElementById("fabAdd").addEventListener("click", openQuickAddModal);
+document.getElementById("openQuickAddBtn").addEventListener("click", openQuickAddModal);
+
+function renderMovRecent(){
+  const body = document.getElementById("movRecentBody");
+  const list = [...movimientos].sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || (b.createdAt||0)-(a.createdAt||0)).slice(0,10);
+  if (!list.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">Todavía no has registrado movimientos.</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(mv=>rowMov(mv, {conductor:true, descripcion:false, delAttr:"del-mov"})).join("");
+}
+
+function rowMov(mv, opts){
+  opts = opts || {};
+  const moto = getMoto(mv.motoId);
+  const cond = getConductor(mv.conductorId);
+  const cls = mv.tipo==="ingreso"?"income":"expense";
+  return `<tr>
+    <td>${escapeHtml(mv.fecha)}</td>
+    <td><span class="pill ${mv.tipo==='ingreso'?'pill-active':'pill-inactive'}" style="${mv.tipo==='egreso'?'background:var(--expense-soft);color:var(--expense);':''}">${mv.tipo==='ingreso'?'Ingreso':'Egreso'}</span></td>
+    <td>${moto?escapeHtml(motoLabel(moto)):'<span class="muted">—</span>'}</td>
+    ${opts.conductor?`<td>${cond?escapeHtml(cond.nombre):'<span class="muted">—</span>'}</td>`:""}
+    <td>${escapeHtml(mv.categoria||"—")}</td>
+    ${opts.descripcion?`<td>${escapeHtml(mv.descripcion||"—")}</td>`:""}
+    <td class="amount ${cls}">${mv.tipo==="ingreso"?"+":"-"}${money(mv.monto)}</td>
+    <td><div class="row-actions"><button class="btn small btn-danger" data-${opts.delAttr||"del-mov"}="${mv.id}">Eliminar</button></div></td>
+  </tr>`;
+}
+
+document.getElementById("movRecentBody").addEventListener("click", async e=>{
+  const id = e.target.dataset.delMov;
+  if (id){
+    const ok = await confirmModal("Eliminar movimiento", "Esta acción no se puede deshacer.");
+    if (ok) await deleteDoc("movimientos", id);
+  }
+});
+
+function renderMovToday(){
+  const today = todayStr();
+  const list = movimientos.filter(m=>m.fecha===today);
+  const ing = list.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  const egr = list.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  document.getElementById("movTodaySummary").innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span class="muted">Ingresos hoy</span><span class="amount income">${money(ing)}</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span class="muted">Egresos hoy</span><span class="amount expense">${money(egr)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border);"><span class="muted">Saldo</span><strong>${money(ing-egr)}</strong></div>
+    <div class="mini-note" style="margin-top:10px;">${list.length} movimiento(s) registrados hoy.</div>`;
+}
+
+/* ===================== Historial ===================== */
+function applyHistFilters(){
+  const desde = document.getElementById("histDesde").value;
+  const hasta = document.getElementById("histHasta").value;
+  const tipo = document.getElementById("histTipo").value;
+  const motoId = document.getElementById("histMoto").value;
+  const condId = document.getElementById("histConductor").value;
+  const q = document.getElementById("histBuscar").value.trim().toLowerCase();
+
+  return movimientos.filter(m=>{
+    if (desde && m.fecha < desde) return false;
+    if (hasta && m.fecha > hasta) return false;
+    if (tipo && m.tipo !== tipo) return false;
+    if (motoId && m.motoId !== motoId) return false;
+    if (condId && m.conductorId !== condId) return false;
+    if (q && !(m.descripcion||"").toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || (b.createdAt||0)-(a.createdAt||0));
+}
+
+function renderHistorial(){
+  fillSelect(document.getElementById("histMoto"), motos, m=>motoLabel(m));
+  fillSelect(document.getElementById("histConductor"), conductores, c=>c.nombre);
+
+  const list = applyHistFilters();
+  const body = document.getElementById("histBody");
+  if (!list.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="8">No hay movimientos que coincidan con los filtros.</td></tr>';
+  } else {
+    body.innerHTML = list.map(mv=>rowMov(mv, {conductor:true, descripcion:true, delAttr:"del-mov2"})).join("");
+  }
+  const ing = list.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  const egr = list.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  document.getElementById("histSummary").textContent =
+    `${list.length} movimiento(s) · Ingresos ${money(ing)} · Egresos ${money(egr)} · Saldo ${money(ing-egr)}`;
+}
+
+["histDesde","histHasta","histTipo","histMoto","histConductor","histBuscar"].forEach(id=>{
+  document.getElementById(id).addEventListener("input", renderHistorial);
+  document.getElementById(id).addEventListener("change", renderHistorial);
+});
+document.getElementById("histClear").addEventListener("click", ()=>{
+  ["histDesde","histHasta","histTipo","histMoto","histConductor","histBuscar"].forEach(id=>document.getElementById(id).value="");
+  renderHistorial();
+});
+document.getElementById("histBody").addEventListener("click", async e=>{
+  const id = e.target.dataset.delMov2;
+  if (id){
+    const ok = await confirmModal("Eliminar movimiento", "Esta acción no se puede deshacer.");
+    if (ok) await deleteDoc("movimientos", id);
+  }
+});
+
+/* ===================== Panel ===================== */
+function renderPanel(){
+  const today = new Date();
+  const ym = today.toISOString().slice(0,7);
+  const monthList = movimientos.filter(m=>(m.fecha||"").startsWith(ym));
+  const ing = monthList.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  const egr = monthList.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  const activos = motos.filter(m=>(m.estado||"activa")==="activa").length;
+  const condActivos = conductores.filter(c=>(c.estado||"activo")==="activo").length;
+
+  document.getElementById("panelCards").innerHTML = `
+    <div class="card"><div class="card-label">Motos activas</div><div class="card-value">${activos}</div><div class="card-sub">${motos.length} en total</div></div>
+    <div class="card"><div class="card-label">Conductores activos</div><div class="card-value">${condActivos}</div><div class="card-sub">${conductores.length} en total</div></div>
+    <div class="card"><div class="card-label">Ingresos del mes</div><div class="card-value income">${money(ing)}</div><div class="card-sub">${monthLabel(ym)}</div></div>
+    <div class="card"><div class="card-label">Egresos del mes</div><div class="card-value expense">${money(egr)}</div><div class="card-sub">${monthLabel(ym)}</div></div>
+    <div class="card"><div class="card-label">Saldo neto del mes</div><div class="card-value" style="color:var(--accent);">${money(ing-egr)}</div><div class="card-sub">Ingresos − egresos</div></div>
+  `;
+
+  const body = document.getElementById("panelRecentBody");
+  const list = [...movimientos].sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || (b.createdAt||0)-(a.createdAt||0)).slice(0,6);
+  if (!list.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">Aún no hay movimientos registrados.</td></tr>';
+  } else {
+    body.innerHTML = list.map(mv=>{
+      const moto = getMoto(mv.motoId);
+      const cls = mv.tipo==="ingreso"?"income":"expense";
+      return `<tr><td>${escapeHtml(mv.fecha)}</td><td>${mv.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
+      <td>${moto?escapeHtml(motoLabel(moto)):'<span class="muted">—</span>'}</td>
+      <td>${escapeHtml(mv.categoria||"—")}</td>
+      <td class="amount ${cls}">${mv.tipo==="ingreso"?"+":"-"}${money(mv.monto)}</td></tr>`;
+    }).join("");
+  }
+  renderTrendChart();
+}
+
+/* ===================== Charts ===================== */
+let chartTrend, chartYear, chartExpenseCat, chartByMoto;
+function lastMonths(n){
+  const arr=[];
+  const d = new Date();
+  d.setDate(1);
+  for(let i=n-1;i>=0;i--){
+    const dd = new Date(d.getFullYear(), d.getMonth()-i, 1);
+    arr.push(dd.toISOString().slice(0,7));
+  }
+  return arr;
+}
+function monthTotals(ym){
+  const list = movimientos.filter(m=>(m.fecha||"").startsWith(ym));
+  return {
+    ing: list.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+Number(m.monto||0),0),
+    egr: list.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+Number(m.monto||0),0)
+  };
+}
+const chartGrid = {color:"rgba(255,255,255,.06)"};
+const chartFont = {color:"#8D93A3", font:{family:"Inter", size:11}};
+
+function renderTrendChart(){
+  const months = lastMonths(6);
+  const ing = months.map(m=>monthTotals(m).ing);
+  const egr = months.map(m=>monthTotals(m).egr);
+  const ctx = document.getElementById("chartPanelTrend");
+  if (!ctx || typeof Chart==="undefined") return;
+  if (chartTrend) chartTrend.destroy();
+  chartTrend = new Chart(ctx, {
+    type:"bar",
+    data:{ labels: months.map(monthLabel), datasets:[
+      {label:"Ingresos", data:ing, backgroundColor:"#3DDC97", borderRadius:5, maxBarThickness:26},
+      {label:"Egresos", data:egr, backgroundColor:"#FF5C6C", borderRadius:5, maxBarThickness:26}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:"#EDEFF3", font:{family:"Inter"}}}},
+      scales:{ x:{grid:{display:false}, ticks:chartFont}, y:{grid:chartGrid, ticks:chartFont} }
+    }
+  });
+}
+
+function renderCharts(){
+  // Year balance
+  const months = lastMonths(12);
+  const ing = months.map(m=>monthTotals(m).ing);
+  const egr = months.map(m=>monthTotals(m).egr);
+  const neto = months.map((m,i)=>ing[i]-egr[i]);
+  const ctxY = document.getElementById("chartYear");
+  if (chartYear) chartYear.destroy();
+  chartYear = new Chart(ctxY, {
+    type:"line",
+    data:{ labels: months.map(monthLabel), datasets:[
+      {label:"Ingresos", data:ing, borderColor:"#3DDC97", backgroundColor:"rgba(61,220,151,.12)", tension:.35, fill:true},
+      {label:"Egresos", data:egr, borderColor:"#FF5C6C", backgroundColor:"rgba(255,92,108,.1)", tension:.35, fill:true},
+      {label:"Saldo neto", data:neto, borderColor:"#F5A623", borderDash:[5,4], tension:.35}
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:"#EDEFF3", font:{family:"Inter"}}}},
+      scales:{ x:{grid:{display:false}, ticks:chartFont}, y:{grid:chartGrid, ticks:chartFont} } }
+  });
+
+  // Expense by category
+  const catTotals = {};
+  movimientos.filter(m=>m.tipo==="egreso").forEach(m=>{
+    const c = m.categoria||"Otro";
+    catTotals[c] = (catTotals[c]||0) + Number(m.monto||0);
+  });
+  const catLabels = Object.keys(catTotals);
+  const palette = ["#F5A623","#FF5C6C","#3DDC97","#6C8EFF","#C77DFF","#FFD166","#7DD3FC"];
+  const ctxC = document.getElementById("chartExpenseCat");
+  if (chartExpenseCat) chartExpenseCat.destroy();
+  chartExpenseCat = new Chart(ctxC, {
+    type:"doughnut",
+    data:{ labels: catLabels, datasets:[{ data: catLabels.map(l=>catTotals[l]), backgroundColor: catLabels.map((_,i)=>palette[i%palette.length]), borderColor:"#1B1E26", borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom", labels:{color:"#EDEFF3", boxWidth:10, font:{family:"Inter", size:11}}}} }
+  });
+  if (!catLabels.length){
+    ctxC.getContext("2d").font = "13px Inter";
+  }
+
+  // Profit by moto
+  const byMoto = {};
+  motos.forEach(m=> byMoto[m.id] = {label:motoLabel(m), ing:0, egr:0});
+  movimientos.forEach(m=>{
+    if (!m.motoId || !byMoto[m.motoId]) return;
+    if (m.tipo==="ingreso") byMoto[m.motoId].ing += Number(m.monto||0);
+    else byMoto[m.motoId].egr += Number(m.monto||0);
+  });
+  const motoEntries = Object.values(byMoto);
+  const ctxM = document.getElementById("chartByMoto");
+  if (chartByMoto) chartByMoto.destroy();
+  chartByMoto = new Chart(ctxM, {
+    type:"bar",
+    data:{ labels: motoEntries.map(e=>e.label), datasets:[{ label:"Ganancia neta", data: motoEntries.map(e=>e.ing-e.egr), backgroundColor: motoEntries.map(e=> (e.ing-e.egr)>=0 ? "#3DDC97":"#FF5C6C"), borderRadius:5 }] },
+    options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{ x:{grid:chartGrid, ticks:chartFont}, y:{grid:{display:false}, ticks:chartFont} } }
+  });
+}
+
+/* ===================== PDF mensual ===================== */
+function monthPickerHtml(){
+  const ym = new Date().toISOString().slice(0,7);
+  return `
+    <h3>Descargar reporte mensual</h3>
+    <div class="field"><label>Mes</label><input type="month" id="pdfMonth" value="${ym}"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="cancelBtn">Cancelar</button>
+      <button type="button" class="btn btn-accent" id="genPdfBtn">Generar PDF</button>
+    </div>`;
+}
+
+document.getElementById("pdfBtn").addEventListener("click", ()=>{
+  openModal(monthPickerHtml());
+  document.getElementById("cancelBtn").onclick = closeModal;
+  document.getElementById("genPdfBtn").onclick = async ()=>{
+    const ym = document.getElementById("pdfMonth").value;
+    if (!ym) return;
+    document.getElementById("genPdfBtn").textContent = "Generando…";
+    document.getElementById("genPdfBtn").disabled = true;
+    try{
+      await generateMonthlyPdf(ym);
+      closeModal();
+    }catch(err){
+      console.error(err);
+      showBanner("No se pudo generar el PDF. Intenta de nuevo.");
+    }
+  };
+});
+
+async function generateMonthlyPdf(ym){
+  if (!window.jspdf){ throw new Error("jsPDF no disponible"); }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const list = movimientos.filter(m=>(m.fecha||"").startsWith(ym)).sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
+  const ing = list.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+Number(m.monto||0),0);
+  const egr = list.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+Number(m.monto||0),0);
+
+  doc.setFont("helvetica","bold"); doc.setFontSize(17);
+  doc.text("MotoControl — Reporte mensual", 14, 18);
+  doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(90);
+  doc.text("Periodo: " + monthLabel(ym).replace(/^\w/,c=>c.toUpperCase()) + "  ·  Generado: " + new Date().toLocaleDateString("es-CO"), 14, 25);
+
+  doc.setTextColor(20);
+  doc.setFont("helvetica","bold"); doc.setFontSize(12);
+  doc.text("Resumen", 14, 37);
+  doc.setFont("helvetica","normal"); doc.setFontSize(11);
+  doc.text(`Ingresos: ${money(ing)}`, 14, 45);
+  doc.text(`Egresos: ${money(egr)}`, 14, 52);
+  doc.setFont("helvetica","bold");
+  doc.text(`Saldo neto: ${money(ing-egr)}`, 14, 59);
+
+  // Per-moto breakdown
+  const byMoto = {};
+  motos.forEach(m=> byMoto[m.id] = {label:motoLabel(m), ing:0, egr:0});
+  list.forEach(m=>{
+    if (!m.motoId || !byMoto[m.motoId]) return;
+    if (m.tipo==="ingreso") byMoto[m.motoId].ing += Number(m.monto||0);
+    else byMoto[m.motoId].egr += Number(m.monto||0);
+  });
+  const motoRows = Object.values(byMoto).map(e=>[e.label, money(e.ing), money(e.egr), money(e.ing-e.egr)]);
+
+  let cursorY = 68;
+  if (motoRows.length){
+    doc.autoTable({
+      startY: cursorY,
+      head: [["Moto","Ingresos","Egresos","Neto"]],
+      body: motoRows,
+      styles:{ font:"helvetica", fontSize:9 },
+      headStyles:{ fillColor:[27,30,38] },
+      theme:"striped"
+    });
+    cursorY = doc.lastAutoTable.finalY + 10;
+  }
+
+  const rows = list.map(m=>{
+    const moto = getMoto(m.motoId);
+    const cond = getConductor(m.conductorId);
+    return [
+      m.fecha, m.tipo==="ingreso"?"Ingreso":"Egreso",
+      moto?motoLabel(moto):"—", cond?cond.nombre:"—",
+      m.categoria||"—", m.descripcion||"",
+      (m.tipo==="ingreso"?"+":"-")+money(m.monto)
+    ];
+  });
+
+  doc.autoTable({
+    startY: cursorY,
+    head: [["Fecha","Tipo","Moto","Conductor","Categoría","Descripción","Monto"]],
+    body: rows.length?rows:[["—","—","—","—","—","Sin movimientos este mes","—"]],
+    styles:{ font:"helvetica", fontSize:8.5, cellPadding:3 },
+    headStyles:{ fillColor:[245,166,35], textColor:[20,20,20] },
+    theme:"striped",
+    columnStyles:{ 5:{cellWidth:45} }
+  });
+
+  const filename = `MotoControl_${ym}.pdf`;
+  const blob = doc.output("blob");
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+/* ===================== Render orchestration ===================== */
+function renderAll(){
+  renderMotos();
+  renderConductores();
+  renderMovRecent();
+  renderMovToday();
+  renderHistorial();
+  renderPanel();
+  const visible = views.find(v=>!document.getElementById("view-"+v).classList.contains("hidden"));
+  if (visible==="estadisticas") renderCharts();
+}
+
+/* ===================== Init ===================== */
+initAuth();
+})();
+</script>
+</body>
+</html>
